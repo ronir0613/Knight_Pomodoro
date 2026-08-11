@@ -3,7 +3,8 @@ import { useAppData } from '../utils/useAppData';
 import DashboardTab from './components/DashboardTab';
 import SettingsTab from './components/SettingsTab';
 import HistoryTab from './components/HistoryTab';
-import { LayoutDashboard, Settings, History, Shield } from 'lucide-react';
+import { LayoutDashboard, Settings, History } from 'lucide-react';
+import { KnightLogo } from '../components/KnightLogo';
 
 const App: React.FC = () => {
   const data = useAppData();
@@ -19,7 +20,7 @@ const App: React.FC = () => {
         <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 sticky top-0 z-10">
           <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Shield className="text-knight-accent" size={28} />
+              <KnightLogo size={28} />
               <h1 className="text-xl font-bold tracking-tight">Knight Pomodoro</h1>
             </div>
             

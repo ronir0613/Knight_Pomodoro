@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAppData } from '../utils/useAppData';
 import { formatTime, getActualRemainingTime } from '../utils/formatTime';
 import { Play, Pause, Square, SkipForward, BarChart2, Settings } from 'lucide-react';
+import { KnightLogo } from '../components/KnightLogo';
 
 const App: React.FC = () => {
   const data = useAppData();
@@ -65,7 +66,7 @@ const App: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center p-3 border-b border-gray-200 dark:border-gray-700">
         <h1 className="font-semibold text-lg flex items-center gap-2">
-          <span className="text-knight-accent">◈</span> Knight Pomodoro
+          <KnightLogo size={20} /> Knight Pomodoro
         </h1>
         <div className="flex gap-2">
           <button onClick={openDashboard} className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition">

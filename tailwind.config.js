@@ -9,8 +9,9 @@ export default {
       colors: {
         knight: {
           light: '#f8f9fa',
-          dark: '#1a1f2e',
+          dark: '#0D1117',
           accent: '#d4af37', // Gold
+          silver: '#C0C0C0',
           text: '#2d3748',
           textDark: '#e2e8f0'
         }

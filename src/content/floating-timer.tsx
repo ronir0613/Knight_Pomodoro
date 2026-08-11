@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useAppData } from '../utils/useAppData';
 import { formatTime, getActualRemainingTime } from '../utils/formatTime';
+import { KnightLogo } from '../components/KnightLogo';
 
 // Inject Tailwind styles for the content script
 import tailwindStyles from '../index.css?inline';
@@ -90,7 +91,7 @@ const FloatingTimer: React.FC = () => {
         select-none transition-colors
       `}
     >
-      <span className="text-yellow-500">◈</span>
+      <KnightLogo size={16} variant="monochrome" color="#D4AF37" />
       {formatTime(displayTime)}
     </div>
   );
