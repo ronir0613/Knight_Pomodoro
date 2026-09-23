@@ -1,12 +1,261 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Site Blocked - Knight Pomodoro</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/blocked/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blocked — Knight Pomodoro</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .bg-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+    .bg-glow::before {
+      content: '';
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(239,68,68,0.08) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+
+    .card {
+      text-align: center;
+      max-width: 420px;
+      padding: 56px 40px;
+      position: relative;
+    }
+
+    .site-badge {
+      display: inline-block;
+      padding: 6px 16px;
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 20px;
+      color: #fca5a5;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      margin-bottom: 32px;
+      word-break: break-all;
+      max-width: 340px;
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 600;
+      color: #f1f5f9;
+      line-height: 1.3;
+      margin-bottom: 12px;
+      letter-spacing: -0.3px;
+    }
+
+    .subtitle {
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 40px;
+    }
+
+    /* Countdown ring */
+    .ring-wrap {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 32px;
+    }
+
+    .ring-wrap svg {
+      position: absolute;
+      top: 0; left: 0;
+      transform: rotate(-90deg);
+    }
+
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ring-number {
+      font-size: 36px;
+      font-weight: 200;
+      color: #f87171;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ring-label {
+      font-size: 9px;
+      color: #f87171;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+
+    .allow-btn {
+      display: none; /* shown via JS when countdown ends */
+      padding: 12px 28px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      color: #cbd5e1;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+    .allow-btn:hover {
+      background: rgba(255,255,255,0.1);
+      color: #f1f5f9;
+    }
+
+    .strict-note {
+      margin-top: 16px;
+      color: #475569;
+      font-size: 12px;
+    }
+
+    .focus-time {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      color: #475569;
+      font-size: 12px;
+      letter-spacing: 0.3px;
+    }
+    .focus-time span {
+      color: #d4af37;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+  <div class="card">
+    <div class="site-badge" id="site-badge">This site is blocked</div>
+    <h1>Stay on track.</h1>
+    <p class="subtitle" id="subtitle">
+      You're in a focus session — this site is on your blocklist.<br/>
+      Take a breath. You've got this.
+    </p>
+
+    <div class="ring-wrap" id="ring-wrap">
+      <svg width="120" height="120">
+        <circle cx="60" cy="60" r="52" stroke="rgba(255,255,255,0.05)" stroke-width="5" fill="none" />
+        <circle
+          id="ring-progress"
+          cx="60" cy="60" r="52"
+          stroke="#f87171"
+          stroke-width="5"
+          fill="none"
+          stroke-linecap="round"
+          stroke-dasharray="326.7"
+          stroke-dashoffset="0"
+          style="filter: drop-shadow(0 0 6px rgba(248,113,113,0.5)); transition: stroke-dashoffset 1s linear;"
+        />
+      </svg>
+      <div class="ring-center">
+        <div class="ring-number" id="countdown">10</div>
+        <div class="ring-label">seconds</div>
+      </div>
+    </div>
+
+    <a id="allow-btn" class="allow-btn" href="#">Continue to site</a>
+    <p class="strict-note" id="strict-note" style="display:none;">
+      Strict mode is enabled — site access is locked during focus.
+    </p>
+
+    <div class="focus-time" id="focus-time" style="display:none;"></div>
+  </div>
+
+  <script>
+    const CIRC = 2 * Math.PI * 52;
+    const WAIT_SECS = 10;
+
+    // ── Parse URL params ──────────────────────────────────────────────────────
+    const params = new URLSearchParams(location.search);
+    const site = params.get('site') || '';
+    const isStrict = params.get('strict') === '1';
+
+    const badge = document.getElementById('site-badge');
+    const subtitle = document.getElementById('subtitle');
+    const countdownEl = document.getElementById('countdown');
+    const ringProgress = document.getElementById('ring-progress');
+    const allowBtn = document.getElementById('allow-btn');
+    const strictNote = document.getElementById('strict-note');
+    const focusTimeEl = document.getElementById('focus-time');
+    const originalUrl = params.get('url') || '';
+
+    if (site) {
+      badge.textContent = site;
+      allowBtn.href = originalUrl || `https://${site}`;
+    }
+
+    // ── Strict mode: show lock message, no countdown ──────────────────────────
+    if (isStrict) {
+      document.getElementById('ring-wrap').style.display = 'none';
+      strictNote.style.display = 'block';
+      subtitle.textContent = 'Strict mode is active — site access is locked until your focus session ends or is paused.';
+    } else {
+      // ── Non-strict: 10-second countdown then allow ──────────────────────────
+      let remaining = WAIT_SECS;
+
+      const update = () => {
+        countdownEl.textContent = remaining;
+        const pct = remaining / WAIT_SECS;
+        ringProgress.style.strokeDashoffset = CIRC * (1 - pct);
+      };
+
+      update();
+
+      const interval = setInterval(() => {
+        remaining--;
+        update();
+        if (remaining <= 0) {
+          clearInterval(interval);
+          countdownEl.textContent = '0';
+          allowBtn.style.display = 'inline-block';
+          // Log unfocused time via message to background
+          chrome.runtime.sendMessage({ type: 'LOG_SOFT_OVERRIDE' });
+        }
+      }, 1000);
+    }
+
+    // ── Show today's focus time ───────────────────────────────────────────────
+    chrome.storage.local.get('knight_pomodoro_data', (result) => {
+      const data = result.knight_pomodoro_data;
+      if (!data) return;
+      const today = new Date();
+      const key = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      const stats = data.dailyStats?.[key];
+      if (stats?.focusedTime > 0) {
+        const mins = Math.floor(stats.focusedTime / 60000);
+        focusTimeEl.innerHTML = `Today's focus so far: <span>${mins}m</span>`;
+        focusTimeEl.style.display = 'block';
+      }
+    });
+  </script>
+</body>
 </html>

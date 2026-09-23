@@ -1,96 +1,141 @@
-import { handleAlarm, startTimer, pauseTimer, resumeTimer, stopTimer, skipPhase } from '../timer/timer-engine';
-import { handleActivityStateChange, handleWindowFocusChange, handleTimerStateChangeForTracking } from '../tracking/activity-tracker';
-import { getAppData } from '../storage/storage';
-import { enableTabLock, disableTabLock, startTabListeners, stopTabListeners } from './tab-lock';
+import {
+  ALARM_BADGE,
+  ALARM_FLUSH,
+  ALARM_TIMER,
+  handleBadgeAlarm,
+  handleTimerAlarm,
+  pauseSession,
+  recoverFromWorkerKill,
+  resumeSession,
+  skipCurrent,
+  startFocus,
+  startPausedBreak,
+  stopSession,
+} from './state-machine';
+import { handleFlushAlarm, handleIdleStateChange, handleWindowFocusChange, initTracking } from '../tracking/activity-tracker';
+import { updateRules } from './blocker';
+import { getAppData, getTodayDateString, incrementDailyTime } from '../storage/storage';
 
-// Initialize idle detection and strict-mode tab lock on startup
-chrome.storage.local.get('knight_pomodoro_data').then((result: any) => {
-  const settings = result.knight_pomodoro_data?.settings;
-  const threshold = settings?.idleThreshold || 300;
-  chrome.idle.setDetectionInterval(threshold);
+// ─── Startup ──────────────────────────────────────────────────────────────────
 
-  // Restore tab-lock state if strict mode was active before the service worker was killed
-  if (settings?.strictModeEnabled) {
-    enableTabLock(settings.allowedDomains || []);
-    startTabListeners(settings.allowedDomains || []);
+(async () => {
+  const data = await getAppData();
+
+  // Set idle detection interval (spec: 60s)
+  chrome.idle.setDetectionInterval(60);
+
+  // Ensure periodic alarms are registered (they survive worker kills, but create
+  // is a no-op if the alarm already exists — safe to call unconditionally)
+  chrome.alarms.create(ALARM_BADGE, { periodInMinutes: 1 });
+  chrome.alarms.create(ALARM_FLUSH, { periodInMinutes: 0.5 }); // every 30 s
+
+  // Re-apply blocking rules (may have been active before worker was killed)
+  await updateRules(data.timerState, data.settings);
+
+  // If the timer was running when the worker was killed, catch up
+  await recoverFromWorkerKill();
+
+  // Sync tracking state with current window/idle reality
+  await initTracking();
+})();
+
+// ─── Alarms ───────────────────────────────────────────────────────────────────
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  switch (alarm.name) {
+    case ALARM_TIMER:
+      await handleTimerAlarm();
+      break;
+    case ALARM_BADGE:
+      await handleBadgeAlarm();
+      break;
+    case ALARM_FLUSH:
+      await handleFlushAlarm();
+      break;
   }
 });
 
-// Setup event listeners
-chrome.alarms.onAlarm.addListener(async (alarm: any) => {
-  await handleAlarm(alarm);
-  await handleTimerStateChangeForTracking();
+// ─── Tracking events ──────────────────────────────────────────────────────────
+
+chrome.idle.onStateChanged.addListener((newState) => {
+  handleIdleStateChange(newState as 'active' | 'idle' | 'locked');
 });
 
-chrome.idle.onStateChanged.addListener((newState: any) => {
-  handleActivityStateChange(newState);
-});
-
-chrome.windows.onFocusChanged.addListener((windowId: number) => {
+chrome.windows.onFocusChanged.addListener((windowId) => {
   handleWindowFocusChange(windowId);
 });
 
-// Update idle interval and strict-mode tab lock if settings change
-chrome.storage.onChanged.addListener((changes: any, namespace: string) => {
-  if (namespace === 'local' && changes.knight_pomodoro_data) {
-    const oldSettings = changes.knight_pomodoro_data.oldValue?.settings;
-    const newSettings = changes.knight_pomodoro_data.newValue?.settings;
+// ─── Settings changes → re-apply blocking rules ───────────────────────────────
 
-    if (newSettings?.idleThreshold && oldSettings?.idleThreshold !== newSettings.idleThreshold) {
-      chrome.idle.setDetectionInterval(newSettings.idleThreshold);
-    }
+chrome.storage.onChanged.addListener(async (changes, namespace) => {
+  if (namespace !== 'local') return;
+  if (!changes.knight_pomodoro_data) return;
 
-    // Sync tab-lock whenever strictMode or allowedDomains changes
-    const strictChanged = oldSettings?.strictModeEnabled !== newSettings?.strictModeEnabled;
-    const domainsChanged = JSON.stringify(oldSettings?.allowedDomains) !== JSON.stringify(newSettings?.allowedDomains);
-    if (strictChanged || domainsChanged) {
-      if (newSettings?.strictModeEnabled) {
-        enableTabLock(newSettings.allowedDomains || []);
-        startTabListeners(newSettings.allowedDomains || []);
+  const newData = changes.knight_pomodoro_data.newValue as import('../storage/models').AppData | undefined;
+  if (!newData) return;
+
+  // Re-apply rules whenever settings or timer state changes
+  // (blocklist, strictMode, allowedDomains, or state transition)
+  await updateRules(newData.timerState, newData.settings);
+});
+
+// ─── Keyboard shortcuts ───────────────────────────────────────────────────────
+
+chrome.commands.onCommand.addListener(async (command) => {
+  switch (command) {
+    case 'toggle_timer': {
+      const data = await getAppData();
+      const { timerState } = data;
+      if (timerState.currentState === 'idle') {
+        await startFocus();
+      } else if (timerState.pausedAt !== null) {
+        await resumeSession();
       } else {
-        disableTabLock();
-        stopTabListeners();
+        await pauseSession();
       }
+      break;
     }
+    case 'skip_phase':
+      await skipCurrent();
+      break;
   }
 });
 
-// Message listener for UI commands
-chrome.runtime.onMessage.addListener((request: any, _sender: any, sendResponse: any) => {
+// ─── Message handler (from popup + content script) ───────────────────────────
+
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   (async () => {
     switch (request.type) {
-      case 'START_TIMER':
-        await startTimer();
-        await handleTimerStateChangeForTracking();
+      case 'START_FOCUS':
+        await startFocus();
         break;
-      case 'PAUSE_TIMER':
-        await pauseTimer();
+      case 'START_BREAK':
+        await startPausedBreak();
         break;
-      case 'RESUME_TIMER':
-        await resumeTimer();
+      case 'PAUSE':
+        await pauseSession();
         break;
-      case 'STOP_TIMER':
-        await stopTimer();
-        await handleTimerStateChangeForTracking();
+      case 'RESUME':
+        await resumeSession();
         break;
-      case 'SKIP_PHASE':
-        await skipPhase();
-        await handleTimerStateChangeForTracking();
+      case 'STOP':
+        await stopSession();
         break;
-      case 'GET_STATE':
+      case 'SKIP':
+        await skipCurrent();
+        break;
+      case 'GET_STATE': {
         const data = await getAppData();
         sendResponse(data);
-        return; // sendResponse is called here
+        return;
+      }
+      // Blocked-page soft override: user waited 10s and is about to access the site.
+      // Log it as unfocused browsing time (honest: it's a lapse, not a chosen break).
+      case 'LOG_SOFT_OVERRIDE':
+        await incrementDailyTime(getTodayDateString(), 0, 10_000);
+        break;
     }
-    sendResponse({ success: true });
+    sendResponse({ ok: true });
   })();
-  
-  return true; // Indicate async response
-});
-
-// Initial tracking start check
-chrome.windows.getLastFocused((window: any) => {
-  if (window && window.focused) {
-    handleWindowFocusChange(window.id!);
-  }
+  return true; // keep channel open for async sendResponse
 });

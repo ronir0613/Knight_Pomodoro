@@ -5,18 +5,20 @@ import { crx } from '@crxjs/vite-plugin'
 // @ts-ignore
 import manifest from './manifest.json'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    crx({ manifest })
+    crx({ manifest }),
   ],
   build: {
     modulePreload: false,
     rollupOptions: {
       input: {
-        blocked: 'blocked.html'
-      }
-    }
-  }
+        // blocked.html is declared in web_accessible_resources — include it as an entry
+        blocked: 'blocked.html',
+        // options.html is the dashboard (opened via options_ui)
+        options: 'options.html',
+      },
+    },
+  },
 })

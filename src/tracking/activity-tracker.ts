@@ -1,90 +1,151 @@
-import { getAppData, updateDailyStats, getTodayDateString } from '../storage/storage';
+import {
+  getAppData,
+  getTodayDateString,
+  incrementDailyTime,
+  updateTrackingState,
+} from '../storage/storage';
+import { TimerState, TrackingState } from '../storage/models';
 
-const TRACKING_STATE_KEY = 'knight_pomodoro_tracking_state';
+// ─── Determine what kind of segment should be active ─────────────────────────
 
-interface TrackingState {
-  isTrackingUnfocused: boolean;
-  unfocusedStartTime: number;
+function computeSegmentType(
+  timerState: TimerState,
+  tracking: TrackingState
+): TrackingState['segmentType'] {
+  // Machine locked or browser unfocused → count nothing
+  if (tracking.idleState === 'locked') return 'none';
+  if (!tracking.windowFocused) return 'none';
+
+  // Focus running (not paused): accumulate focused time
+  if (
+    timerState.currentState === 'focus' &&
+    timerState.pausedAt === null &&
+    tracking.idleState === 'active'
+  ) {
+    return 'focus';
+  }
+
+  // Idle state, active machine, foreground browser → unfocused browsing
+  if (
+    (timerState.currentState === 'idle' ||
+      timerState.currentState === 'shortBreak' ||
+      timerState.currentState === 'longBreak') &&
+    tracking.idleState === 'active'
+  ) {
+    return 'unfocused';
+  }
+
+  return 'none';
 }
 
-const getTrackingState = async (): Promise<TrackingState> => {
-  const result = await chrome.storage.local.get(TRACKING_STATE_KEY);
-  return (result[TRACKING_STATE_KEY] as TrackingState) || { isTrackingUnfocused: false, unfocusedStartTime: 0 };
-};
+// ─── Flush accumulated time to dailyStats ────────────────────────────────────
 
-const setTrackingState = async (state: TrackingState) => {
-  await chrome.storage.local.set({ [TRACKING_STATE_KEY]: state });
-};
-
-export const startUnfocusedTracking = async () => {
+/**
+ * Flush accumulated ms since lastFlushedAt into dailyStats.
+ * Called every 30 s by the kp-flush alarm, and on every segment boundary.
+ */
+const flushSegment = async (): Promise<void> => {
   const data = await getAppData();
-  const trackingState = await getTrackingState();
-  
-  if (data.timerState.phase === 'IDLE' && !trackingState.isTrackingUnfocused) {
-    await setTrackingState({
-      isTrackingUnfocused: true,
-      unfocusedStartTime: Date.now()
-    });
-  }
-};
+  const { trackingState } = data;
 
-export const stopUnfocusedTracking = async () => {
-  const trackingState = await getTrackingState();
-  if (trackingState.isTrackingUnfocused) {
-    const duration = Date.now() - trackingState.unfocusedStartTime;
-    if (duration > 0) {
-      await updateDailyStats(getTodayDateString(), {
-        unfocusedTime: duration
-      });
-    }
-    await setTrackingState({
-      isTrackingUnfocused: false,
-      unfocusedStartTime: 0
-    });
+  if (trackingState.segmentType === 'none' || trackingState.segmentStartedAt === null) {
+    return;
   }
-};
 
-export const handleActivityStateChange = async (newState: any) => {
-  if (newState === 'active') {
-    // Check if Chrome has focus
-    chrome.windows.getLastFocused((window: any) => {
-      if (window && window.focused) {
-        startUnfocusedTracking();
-      }
-    });
+  const now = Date.now();
+  const since = trackingState.lastFlushedAt ?? trackingState.segmentStartedAt;
+  const elapsedMs = now - since;
+
+  if (elapsedMs <= 0) return;
+
+  const today = getTodayDateString();
+
+  if (trackingState.segmentType === 'focus') {
+    await incrementDailyTime(today, elapsedMs, 0);
   } else {
-    // idle or locked
-    stopUnfocusedTracking();
+    await incrementDailyTime(today, 0, elapsedMs);
   }
+
+  await updateTrackingState({ lastFlushedAt: now });
 };
 
-export const handleWindowFocusChange = async (windowId: number) => {
-  if (windowId === chrome.windows.WINDOW_ID_NONE) {
-    // Lost focus
-    stopUnfocusedTracking();
-  } else {
-    // Gained focus
-    const state = await chrome.idle.queryState(15); // Query if active
-    if (state === 'active') {
-      startUnfocusedTracking();
-    }
-  }
-};
+// ─── Recompute and apply the correct segment ──────────────────────────────────
 
-export const handleTimerStateChangeForTracking = async () => {
+const resync = async (): Promise<void> => {
   const data = await getAppData();
-  if (data.timerState.phase !== 'IDLE') {
-    // Timer started, stop unfocused tracking
-    stopUnfocusedTracking();
-  } else {
-    // Timer ended, check if we should start tracking
-    const state = await chrome.idle.queryState(15);
-    if (state === 'active') {
-      chrome.windows.getLastFocused((window: any) => {
-        if (window && window.focused) {
-          startUnfocusedTracking();
-        }
-      });
-    }
+  const { timerState, trackingState } = data;
+
+  const desired = computeSegmentType(timerState, trackingState);
+  const current = trackingState.segmentType;
+
+  if (desired === current) {
+    // Same segment type — nothing to change, flush will happen on the periodic alarm
+    return;
   }
+
+  // Segment boundary: flush what we've accumulated in the old segment
+  await flushSegment();
+
+  // Start the new segment
+  const now = Date.now();
+  await updateTrackingState({
+    segmentType: desired,
+    segmentStartedAt: desired === 'none' ? null : now,
+    lastFlushedAt: desired === 'none' ? null : now,
+  });
+};
+
+// ─── Event handlers (called from service-worker.ts) ──────────────────────────
+
+/**
+ * Called when chrome.idle.onStateChanged fires.
+ */
+export const handleIdleStateChange = async (
+  newState: 'active' | 'idle' | 'locked'
+): Promise<void> => {
+  await updateTrackingState({ idleState: newState });
+  await resync();
+};
+
+/**
+ * Called when chrome.windows.onFocusChanged fires.
+ */
+export const handleWindowFocusChange = async (windowId: number): Promise<void> => {
+  const focused = windowId !== chrome.windows.WINDOW_ID_NONE;
+  await updateTrackingState({ windowFocused: focused });
+  await resync();
+};
+
+/**
+ * Called after every timer state transition so tracking stays in sync.
+ */
+export const onTimerStateChanged = async (_newTimerState: TimerState): Promise<void> => {
+  // The storage was already written by state-machine.ts; resync reads it fresh.
+  // We need to force the timerState we just wrote into the decision, but
+  // getAppData() will return it since storage was already updated before we're called.
+  await resync();
+};
+
+/**
+ * Called every 30 s by the kp-flush alarm.
+ * Just flush — no segment boundary change.
+ */
+export const handleFlushAlarm = async (): Promise<void> => {
+  await flushSegment();
+};
+
+/**
+ * Called once at service-worker startup to initialize window focus state.
+ */
+export const initTracking = async (): Promise<void> => {
+  const windows = await chrome.windows.getAll({ windowTypes: ['normal'] });
+  const anyFocused = windows.some((w) => w.focused);
+  const idleState = await chrome.idle.queryState(60);
+
+  await updateTrackingState({
+    windowFocused: anyFocused,
+    idleState: idleState as TrackingState['idleState'],
+  });
+
+  await resync();
 };

@@ -1,10 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Knight Pomodoro",
-  "version": "1.0.0",
-  "description": "Track your Pomodoro time versus unfocused browser time.",
+  "version": "2.0.0",
+  "description": "A calm, single-purpose Pomodoro timer with focused vs. browsing time tracking.",
   "action": {
-    "default_popup": "index.html"
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
   },
   "options_ui": {
     "page": "options.html",
@@ -17,7 +23,8 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/content/floating-timer.tsx"]
+      "js": ["src/content/floating-timer.tsx"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": [
@@ -25,7 +32,7 @@
     "alarms",
     "idle",
     "tabs",
-    "declarativeNetRequestWithHostAccess",
+    "declarativeNetRequest",
     "offscreen",
     "notifications"
   ],
@@ -34,7 +41,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["blocked.html"],
+      "resources": ["blocked.html", "offscreen.html", "offscreen.js"],
       "matches": ["<all_urls>"]
     }
   ],
@@ -44,7 +51,7 @@
         "default": "Ctrl+Shift+Space",
         "mac": "Command+Shift+Space"
       },
-      "description": "Start, Pause, or Resume the timer"
+      "description": "Start, pause, or resume the timer"
     },
     "skip_phase": {
       "suggested_key": {
