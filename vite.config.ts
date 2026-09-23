@@ -12,6 +12,11 @@ export default defineConfig({
     crx({ manifest })
   ],
   build: {
-    modulePreload: false
+    modulePreload: false,
+    rollupOptions: {
+      input: {
+        blocked: 'blocked.html'
+      }
+    }
   }
 })

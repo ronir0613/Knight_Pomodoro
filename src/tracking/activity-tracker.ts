@@ -1,26 +1,46 @@
 import { getAppData, updateDailyStats, getTodayDateString } from '../storage/storage';
 
-// In-memory state for tracking
-let isTrackingUnfocused = false;
-let unfocusedStartTime = 0;
+const TRACKING_STATE_KEY = 'knight_pomodoro_tracking_state';
+
+interface TrackingState {
+  isTrackingUnfocused: boolean;
+  unfocusedStartTime: number;
+}
+
+const getTrackingState = async (): Promise<TrackingState> => {
+  const result = await chrome.storage.local.get(TRACKING_STATE_KEY);
+  return (result[TRACKING_STATE_KEY] as TrackingState) || { isTrackingUnfocused: false, unfocusedStartTime: 0 };
+};
+
+const setTrackingState = async (state: TrackingState) => {
+  await chrome.storage.local.set({ [TRACKING_STATE_KEY]: state });
+};
 
 export const startUnfocusedTracking = async () => {
   const data = await getAppData();
-  if (data.timerState.phase === 'IDLE' && !isTrackingUnfocused) {
-    isTrackingUnfocused = true;
-    unfocusedStartTime = Date.now();
+  const trackingState = await getTrackingState();
+  
+  if (data.timerState.phase === 'IDLE' && !trackingState.isTrackingUnfocused) {
+    await setTrackingState({
+      isTrackingUnfocused: true,
+      unfocusedStartTime: Date.now()
+    });
   }
 };
 
 export const stopUnfocusedTracking = async () => {
-  if (isTrackingUnfocused) {
-    const duration = Date.now() - unfocusedStartTime;
+  const trackingState = await getTrackingState();
+  if (trackingState.isTrackingUnfocused) {
+    const duration = Date.now() - trackingState.unfocusedStartTime;
     if (duration > 0) {
       await updateDailyStats(getTodayDateString(), {
         unfocusedTime: duration
       });
     }
-    isTrackingUnfocused = false;
+    await setTrackingState({
+      isTrackingUnfocused: false,
+      unfocusedStartTime: 0
+    });
   }
 };
 

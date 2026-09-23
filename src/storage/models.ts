@@ -35,6 +35,10 @@ export interface UserSettings {
   autoStartFocus: boolean;    // default false
   theme: 'light' | 'dark' | 'system';
   idleThreshold: number;      // seconds (e.g., 300 for 5 mins)
+  strictModeEnabled: boolean;
+  allowedDomains: string[];
+  blockNewTabDuringFocus: boolean;
+  strictLockDelaySeconds: number;
 }
 
 export interface AppData {
@@ -52,7 +56,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   autoStartBreaks: false,
   autoStartFocus: false,
   theme: 'system',
-  idleThreshold: 300 // 5 minutes
+  idleThreshold: 300, // 5 minutes
+  strictModeEnabled: false,
+  allowedDomains: [],
+  blockNewTabDuringFocus: true,
+  strictLockDelaySeconds: 10
 };
 
 export const DEFAULT_TIMER_STATE: TimerState = {

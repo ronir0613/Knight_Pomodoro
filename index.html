@@ -5,8 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <title>Knight Pomodoro</title>
+    <style>
+      /* Centers the 350×500 popup card when the page is opened as a full tab */
+      html, body { margin: 0; padding: 0; height: 100%; }
+      body {
+        background: #020617; /* slate-950 — matches popup bg */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+    </style>
   </head>
-  <body class="w-[300px] h-auto min-h-[400px]">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/popup/main.tsx"></script>
   </body>

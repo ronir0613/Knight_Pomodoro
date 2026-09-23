@@ -24,11 +24,36 @@
     "storage",
     "alarms",
     "idle",
-    "tabs"
+    "tabs",
+    "declarativeNetRequestWithHostAccess",
+    "offscreen",
+    "notifications"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["blocked.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "commands": {
+    "toggle_timer": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Space",
+        "mac": "Command+Shift+Space"
+      },
+      "description": "Start, Pause, or Resume the timer"
+    },
+    "skip_phase": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Right",
+        "mac": "Command+Shift+Right"
+      },
+      "description": "Skip the current phase"
+    }
+  },
   "icons": {
     "16": "icon-16.png",
     "32": "icon-32.png",

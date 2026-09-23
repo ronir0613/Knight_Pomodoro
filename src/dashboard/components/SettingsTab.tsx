@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AppData, UserSettings } from '../../storage/models';
 import { updateSettings } from '../../storage/storage';
+import { Clock, Zap, Lock, Palette, Database, Shield, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface Props {
   data: AppData;
@@ -41,13 +42,13 @@ const SettingsTab: React.FC<Props> = ({ data }) => {
           const imported = JSON.parse(event.target?.result as string);
           if (imported.settings && imported.timerState) {
             await chrome.storage.local.set({ knight_pomodoro_data: imported });
-            alert('Data imported successfully!');
+            alert('Data imported successfully! Refreshing...');
             window.location.reload();
           } else {
-            alert('Invalid backup file.');
+            alert('Invalid backup file format.');
           }
         } catch (err) {
-          alert('Failed to parse file.');
+          alert('Failed to parse backup file.');
         }
       };
       reader.readAsText(file);
@@ -55,150 +56,318 @@ const SettingsTab: React.FC<Props> = ({ data }) => {
   };
 
   const handleClear = async () => {
-    if (confirm('Are you sure you want to delete ALL your data? This cannot be undone.')) {
+    if (confirm('⚠️ This will permanently delete ALL your data, including statistics and history. This cannot be undone. Are you absolutely sure?')) {
       await chrome.storage.local.clear();
-      alert('Data cleared.');
+      alert('All data has been cleared.');
       window.location.reload();
     }
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-2xl">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Settings</h2>
-        <button 
+    <div className="space-y-8 max-w-4xl">
+      {/* Save Button Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent mb-2">
+            Settings
+          </h2>
+          <p className="text-slate-500 text-sm">Customize your Pomodoro experience</p>
+        </div>
+        <button
           onClick={handleSave}
-          className="bg-knight-accent hover:bg-yellow-600 text-white px-6 py-2 rounded-md font-medium transition"
+          className={`px-8 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 shadow-lg ${
+            isSaved
+              ? 'bg-green-500 text-white shadow-green-500/30'
+              : 'bg-gradient-to-r from-knight-accent to-yellow-600 text-white hover:shadow-knight-accent/50 hover:scale-105'
+          }`}
         >
-          {isSaved ? 'Saved!' : 'Save Changes'}
+          {isSaved ? (
+            <>
+              <CheckCircle2 size={20} />
+              Saved!
+            </>
+          ) : (
+            'Save Changes'
+          )}
         </button>
       </div>
-      
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-        
-        {/* Timer Settings */}
-        <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-semibold mb-4">Timer Durations (minutes)</h3>
+
+      {/* Timer Settings */}
+      <section className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/10 shadow-xl overflow-hidden">
+        <div className="p-8 border-b border-white/10">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 bg-blue-500/20 rounded-xl">
+              <Clock size={22} className="text-blue-400" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-white">Timer Durations</h3>
+              <p className="text-sm text-slate-400 mt-0.5">Set your ideal focus and break intervals</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Focus</label>
-              <input 
-                type="number" 
+              <label className="block text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                Focus Duration (min)
+              </label>
+              <input
+                type="number"
                 min="1"
-                value={settings.focusDuration / 60000} 
+                value={settings.focusDuration / 60000}
                 onChange={(e) => handleChange('focusDuration', parseInt(e.target.value) * 60000)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-transparent focus:outline-none focus:ring-2 focus:ring-knight-accent"
+                className="w-full border border-white/20 rounded-xl px-4 py-3 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-knight-accent focus:border-transparent transition-all backdrop-blur-sm"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Short Break</label>
-              <input 
-                type="number" 
+              <label className="block text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                Short Break (min)
+              </label>
+              <input
+                type="number"
                 min="1"
-                value={settings.shortBreakDuration / 60000} 
+                value={settings.shortBreakDuration / 60000}
                 onChange={(e) => handleChange('shortBreakDuration', parseInt(e.target.value) * 60000)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-transparent focus:outline-none focus:ring-2 focus:ring-knight-accent"
+                className="w-full border border-white/20 rounded-xl px-4 py-3 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-knight-accent focus:border-transparent transition-all backdrop-blur-sm"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Long Break</label>
-              <input 
-                type="number" 
+              <label className="block text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                Long Break (min)
+              </label>
+              <input
+                type="number"
                 min="1"
-                value={settings.longBreakDuration / 60000} 
+                value={settings.longBreakDuration / 60000}
                 onChange={(e) => handleChange('longBreakDuration', parseInt(e.target.value) * 60000)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-transparent focus:outline-none focus:ring-2 focus:ring-knight-accent"
+                className="w-full border border-white/20 rounded-xl px-4 py-3 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-knight-accent focus:border-transparent transition-all backdrop-blur-sm"
               />
             </div>
           </div>
         </div>
 
-        {/* Behavior */}
-        <div className="p-6 border-b border-gray-100 dark:border-gray-700 space-y-4">
-          <h3 className="text-lg font-semibold mb-4">Behavior</h3>
-          <label className="flex items-center gap-3">
-            <input 
-              type="checkbox" 
-              checked={settings.autoStartBreaks}
-              onChange={(e) => handleChange('autoStartBreaks', e.target.checked)}
-              className="w-4 h-4 text-knight-accent rounded focus:ring-knight-accent"
-            />
-            <span>Auto-start Breaks</span>
-          </label>
-          <label className="flex items-center gap-3">
-            <input 
-              type="checkbox" 
-              checked={settings.autoStartFocus}
-              onChange={(e) => handleChange('autoStartFocus', e.target.checked)}
-              className="w-4 h-4 text-knight-accent rounded focus:ring-knight-accent"
-            />
-            <span>Auto-start Focus</span>
-          </label>
-          <div>
-            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1 mt-4">Long break interval (sessions)</label>
-            <input 
-              type="number" 
-              min="1"
-              value={settings.longBreakInterval} 
-              onChange={(e) => handleChange('longBreakInterval', parseInt(e.target.value))}
-              className="w-full sm:w-32 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-transparent focus:outline-none focus:ring-2 focus:ring-knight-accent"
-            />
+        {/* Behavior Settings */}
+        <div className="p-8 border-b border-white/10">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 bg-purple-500/20 rounded-xl">
+              <Zap size={22} className="text-purple-400" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-white">Behavior</h3>
+              <p className="text-sm text-slate-400 mt-0.5">Automate your workflow</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <label className="flex items-center gap-4 p-4 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={settings.autoStartBreaks}
+                onChange={(e) => handleChange('autoStartBreaks', e.target.checked)}
+                className="w-5 h-5 rounded-md text-knight-accent focus:ring-2 focus:ring-knight-accent focus:ring-offset-2 focus:ring-offset-slate-900 cursor-pointer"
+              />
+              <div className="flex-1">
+                <span className="font-medium text-white group-hover:text-knight-accent transition-colors">Auto-start Breaks</span>
+                <p className="text-xs text-slate-500 mt-0.5">Breaks begin automatically after focus sessions</p>
+              </div>
+            </label>
+
+            <label className="flex items-center gap-4 p-4 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={settings.autoStartFocus}
+                onChange={(e) => handleChange('autoStartFocus', e.target.checked)}
+                className="w-5 h-5 rounded-md text-knight-accent focus:ring-2 focus:ring-knight-accent focus:ring-offset-2 focus:ring-offset-slate-900 cursor-pointer"
+              />
+              <div className="flex-1">
+                <span className="font-medium text-white group-hover:text-knight-accent transition-colors">Auto-start Focus</span>
+                <p className="text-xs text-slate-500 mt-0.5">Focus sessions begin automatically after breaks</p>
+              </div>
+            </label>
+
+            <div className="pt-4">
+              <label className="block text-sm font-semibold text-slate-300 mb-3">Long Break Interval</label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="number"
+                  min="1"
+                  value={settings.longBreakInterval}
+                  onChange={(e) => handleChange('longBreakInterval', parseInt(e.target.value))}
+                  className="w-32 border border-white/20 rounded-xl px-4 py-3 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-knight-accent focus:border-transparent transition-all backdrop-blur-sm"
+                />
+                <span className="text-sm text-slate-400">sessions until long break</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Tracking & Appearance */}
-        <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-semibold mb-4">Tracking & Appearance</h3>
-          <div className="space-y-4">
+        {/* Strict Mode */}
+        <div className="p-8 border-b border-white/10 bg-gradient-to-br from-red-950/20 to-transparent">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 bg-red-500/20 rounded-xl">
+              <Lock size={22} className="text-red-400" />
+            </div>
             <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Theme</label>
-              <select 
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                Strict Mode & Site Blocking
+                <Shield size={16} className="text-red-400" />
+              </h3>
+              <p className="text-sm text-slate-400 mt-0.5">Block distracting websites during focus sessions</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <label className="flex items-center gap-4 p-5 rounded-xl bg-white/5 border border-red-500/20 hover:border-red-500/40 transition-all cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={settings.strictModeEnabled}
+                onChange={(e) => handleChange('strictModeEnabled', e.target.checked)}
+                className="w-5 h-5 rounded-md text-red-500 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-slate-900 cursor-pointer"
+              />
+              <div className="flex-1">
+                <span className="font-bold text-white group-hover:text-red-400 transition-colors">Enable Strict Mode</span>
+                <p className="text-xs text-slate-400 mt-1">When enabled, all non-allowlisted sites will be blocked during focus</p>
+              </div>
+            </label>
+
+            {settings.strictModeEnabled && (
+              <div className="pl-6 space-y-6 border-l-2 border-red-500/30 ml-2.5">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                    <AlertCircle size={16} className="text-yellow-500" />
+                    Allowed Domains
+                  </label>
+                  <p className="text-xs text-slate-500 mb-4">Add domains that should remain accessible (e.g., github.com, *.docs.google.com)</p>
+
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {settings.allowedDomains.map(domain => (
+                      <span
+                        key={domain}
+                        className="bg-white/10 backdrop-blur-sm px-3 py-2 rounded-lg text-sm flex items-center gap-2 border border-white/10 hover:border-red-500/50 transition-all group/tag"
+                      >
+                        <span className="text-white">{domain}</span>
+                        <button
+                          onClick={() => handleChange('allowedDomains', settings.allowedDomains.filter(d => d !== domain))}
+                          className="text-slate-500 hover:text-red-400 transition-colors"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="Type domain and press Enter..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = e.currentTarget.value.trim().toLowerCase();
+                        if (val && !settings.allowedDomains.includes(val)) {
+                          handleChange('allowedDomains', [...settings.allowedDomains, val]);
+                          e.currentTarget.value = '';
+                        }
+                      }
+                    }}
+                    className="w-full border border-white/20 rounded-xl px-4 py-3 bg-white/5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all backdrop-blur-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-3">Escape Friction (seconds)</label>
+                  <p className="text-xs text-slate-500 mb-4">How long to hold Stop/Skip buttons to break out of strict mode</p>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="number"
+                      min="0"
+                      value={settings.strictLockDelaySeconds}
+                      onChange={(e) => handleChange('strictLockDelaySeconds', parseInt(e.target.value) || 0)}
+                      className="w-32 border border-white/20 rounded-xl px-4 py-3 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-knight-accent focus:border-transparent transition-all backdrop-blur-sm"
+                    />
+                    <span className="text-sm text-slate-400">Set to 0 to disable hold requirement</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Appearance */}
+        <div className="p-8 border-b border-white/10">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 bg-pink-500/20 rounded-xl">
+              <Palette size={22} className="text-pink-400" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-white">Appearance & Tracking</h3>
+              <p className="text-sm text-slate-400 mt-0.5">Customize how Knight Pomodoro looks and tracks</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 mb-3">Theme</label>
+              <select
                 value={settings.theme}
                 onChange={(e) => handleChange('theme', e.target.value as UserSettings['theme'])}
-                className="w-full sm:w-48 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-transparent focus:outline-none focus:ring-2 focus:ring-knight-accent"
+                className="w-full sm:w-64 border border-white/20 rounded-xl px-4 py-3 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-knight-accent focus:border-transparent transition-all backdrop-blur-sm cursor-pointer"
               >
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-                <option value="system">System Default</option>
+                <option value="light" className="bg-slate-800">Light</option>
+                <option value="dark" className="bg-slate-800">Dark</option>
+                <option value="system" className="bg-slate-800">System Default</option>
               </select>
             </div>
+
             <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Idle Threshold (seconds away from computer)</label>
-              <input 
-                type="number" 
-                min="60"
-                value={settings.idleThreshold} 
-                onChange={(e) => handleChange('idleThreshold', parseInt(e.target.value))}
-                className="w-full sm:w-32 border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-transparent focus:outline-none focus:ring-2 focus:ring-knight-accent"
-              />
+              <label className="block text-sm font-semibold text-slate-300 mb-3">Idle Detection Threshold</label>
+              <p className="text-xs text-slate-500 mb-4">Seconds of inactivity before pausing the timer</p>
+              <div className="flex items-center gap-4">
+                <input
+                  type="number"
+                  min="60"
+                  value={settings.idleThreshold}
+                  onChange={(e) => handleChange('idleThreshold', parseInt(e.target.value))}
+                  className="w-32 border border-white/20 rounded-xl px-4 py-3 bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-knight-accent focus:border-transparent transition-all backdrop-blur-sm"
+                />
+                <span className="text-sm text-slate-400">seconds</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Data Management */}
-        <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4 text-red-600 dark:text-red-400">Data Management</h3>
+        <div className="p-8 bg-gradient-to-br from-red-950/10 to-transparent">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 bg-red-500/20 rounded-xl">
+              <Database size={22} className="text-red-400" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-red-400">Data Management</h3>
+              <p className="text-sm text-slate-400 mt-0.5">Export, import, or clear your data</p>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-4">
-            <button 
+            <button
               onClick={handleExport}
-              className="border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-slate-700 px-4 py-2 rounded-md font-medium transition"
+              className="px-6 py-3 rounded-xl border border-white/20 hover:bg-white/10 font-medium transition-all duration-200 backdrop-blur-sm hover:border-knight-accent/50 text-white hover:shadow-lg"
             >
               Export Data
             </button>
-            <label className="border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-slate-700 px-4 py-2 rounded-md font-medium transition cursor-pointer">
+            <label className="px-6 py-3 rounded-xl border border-white/20 hover:bg-white/10 font-medium transition-all duration-200 cursor-pointer backdrop-blur-sm hover:border-knight-accent/50 text-white hover:shadow-lg">
               Import Data
               <input type="file" accept=".json" onChange={handleImport} className="hidden" />
             </label>
-            <button 
+            <button
               onClick={handleClear}
-              className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-900 dark:hover:bg-red-900/40 px-4 py-2 rounded-md font-medium transition ml-auto"
+              className="px-6 py-3 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 hover:border-red-500/50 font-medium transition-all duration-200 ml-auto hover:shadow-lg hover:shadow-red-500/20"
             >
               Clear All Data
             </button>
           </div>
         </div>
-        
-      </div>
+      </section>
     </div>
   );
 };
