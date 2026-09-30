@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppData, UserSettings } from '../../storage/models';
 import { exportAppData, resetStats, updateSettings } from '../../storage/storage';
 import {
-  Clock, Zap, Shield, Bell, Database, CheckCircle2, Plus, X,
+  Clock, Zap, Shield, Bell, Database, CheckCircle2, Plus, X, Play,
 } from 'lucide-react';
+
+// ─── Feature flag ─────────────────────────────────────────────────────────────
+// Flip to `true` once blocking has been fully verified working.
+const BLOCKING_ENABLED = false;
 
 interface Props { data: AppData; }
 
@@ -13,20 +17,27 @@ const Section: React.FC<{
   description: string;
   children: React.ReactNode;
   danger?: boolean;
-}> = ({ icon, title, description, children, danger }) => (
-  <section className={`bg-gradient-to-br backdrop-blur-xl rounded-2xl border shadow-xl overflow-hidden ${
+  badge?: string;
+  disabled?: boolean;
+}> = ({ icon, title, description, children, danger, badge, disabled }) => (
+  <section className={`kp-settings-section overflow-hidden ${
     danger
       ? 'from-red-950/20 to-white/5 border-red-500/15'
       : 'from-white/10 to-white/5 border-white/10'
-  }`}>
-    <div className={`p-6 border-b ${danger ? 'border-red-500/10' : 'border-white/8'}`}>
+  } ${disabled ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+    <div className={`kp-setting-section-head p-5 border-b ${danger ? 'border-red-500/10' : 'border-white/8'}`}>
       <div className="flex items-center gap-3 mb-1">
         {icon}
-        <div>
+        <div className="flex items-center gap-2">
           <h3 className="text-lg font-bold text-white">{title}</h3>
-          <p className="text-sm text-slate-500">{description}</p>
+          {badge && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/20">
+              {badge}
+            </span>
+          )}
         </div>
       </div>
+      <p className="text-sm text-slate-500">{description}</p>
     </div>
     <div className="p-6 space-y-5">{children}</div>
   </section>
@@ -37,23 +48,27 @@ const Toggle: React.FC<{
   description?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
-}> = ({ label, description, checked, onChange }) => (
-  <label className="flex items-start gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group">
-    <div
+  disabled?: boolean;
+}> = ({ label, description, checked, onChange, disabled }) => (
+  <div className={`flex items-start gap-4 p-3 rounded-xl transition-colors group ${disabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-white/5'}`}>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative flex-shrink-0 w-10 h-6 rounded-full border-2 transition-all duration-200 cursor-pointer mt-0.5 ${
-        checked ? 'bg-knight-accent border-knight-accent' : 'bg-white/8 border-white/15'
-      }`}
+      className={`relative flex-shrink-0 w-10 h-6 rounded-full border-2 transition-all duration-200 mt-0.5 disabled:cursor-not-allowed ${checked ? 'bg-knight-accent border-knight-accent' : 'bg-white/8 border-white/15'}`}
     >
       <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
         checked ? 'translate-x-4' : 'translate-x-0'
       }`} />
-    </div>
+    </button>
     <div>
       <div className="font-medium text-white group-hover:text-knight-accent transition-colors text-sm">{label}</div>
       {description && <div className="text-xs text-slate-500 mt-0.5">{description}</div>}
     </div>
-  </label>
+  </div>
 );
 
 const NumberInput: React.FC<{
@@ -83,10 +98,159 @@ const NumberInput: React.FC<{
   </div>
 );
 
+// ─── DomainList ───────────────────────────────────────────────────────────────
+// Defined at module scope (not inside SettingsTab) so React never remounts it.
+// Each instance gets its own local input state via useState inside this component.
+
+const DomainList: React.FC<{
+  listKey: 'blocklist' | 'allowedDomains';
+  domains: string[];
+  placeholder: string;
+  chipColor: string;
+  onAdd: (listKey: 'blocklist' | 'allowedDomains', value: string) => void;
+  onRemove: (listKey: 'blocklist' | 'allowedDomains', domain: string) => void;
+  onAddCurrentTab: (listKey: 'blocklist' | 'allowedDomains') => void;
+  currentTabDisabled: boolean;
+  currentTabTooltip: string;
+  disabled?: boolean;
+}> = ({ listKey, domains, placeholder, chipColor, onAdd, onRemove, onAddCurrentTab, currentTabDisabled, currentTabTooltip, disabled }) => {
+  // Bug 2 & 3 fix: each DomainList has its own independent local input state.
+  // Only committed to storage on submit (Enter / click +).
+  const [inputValue, setInputValue] = useState('');
+
+  const handleSubmit = () => {
+    onAdd(listKey, inputValue);
+    setInputValue('');
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-3 min-h-8">
+        {domains.map((d) => (
+          <span
+            key={d}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${chipColor}`}
+          >
+            {d}
+            <button
+              onClick={() => onRemove(listKey, d)}
+              className="hover:text-red-400 transition-colors"
+              disabled={disabled}
+            >
+              <X size={11} />
+            </button>
+          </span>
+        ))}
+        {domains.length === 0 && (
+          <span className="text-xs text-slate-600 italic">No domains added</span>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder={placeholder}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+          disabled={disabled}
+          className="flex-1 border border-white/15 rounded-xl px-3 py-2 bg-white/5 text-white text-sm placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-knight-accent focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={disabled}
+          className="px-3 py-2 rounded-xl bg-white/8 border border-white/12 hover:bg-white/15 text-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Add domain"
+        >
+          <Plus size={16} />
+        </button>
+        <button
+          onClick={() => onAddCurrentTab(listKey)}
+          disabled={disabled || currentTabDisabled}
+          className="px-3 py-2 rounded-xl bg-white/8 border border-white/12 hover:bg-white/15 text-slate-300 text-xs font-medium transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+          title={currentTabTooltip}
+        >
+          + current tab
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── SettingsTab ───────────────────────────────────────────────────────────────
+
 const SettingsTab: React.FC<Props> = ({ data }) => {
   const [settings, setSettings] = useState<UserSettings>(data.settings);
   const [saved, setSaved] = useState(false);
-  const [newDomain, setNewDomain] = useState('');
+  const [soundPreviewError, setSoundPreviewError] = useState(false);
+
+  // Bug 1 fix: Track the last non-extension tab hostname.
+  // The background service-worker tracks tab activations; we also track here
+  // by listening to chrome.tabs events from the dashboard context.
+  const [lastNonExtTabHostname, setLastNonExtTabHostname] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Seed: query all tabs and find the most recently active non-extension tab
+    const seedLastTab = () => {
+      chrome.tabs.query({}, (tabs) => {
+        // Filter to non-extension tabs that have valid http(s) URLs
+        const candidates = tabs.filter((t) => {
+          if (!t.url) return false;
+          try {
+            const u = new URL(t.url);
+            return u.protocol === 'http:' || u.protocol === 'https:';
+          } catch { return false; }
+        });
+        // Pick the last accessed one
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+          try {
+            const hostname = new URL(candidates[0].url!).hostname;
+            if (hostname) setLastNonExtTabHostname(hostname);
+          } catch { /* ignore */ }
+        }
+      });
+    };
+
+    seedLastTab();
+
+    // Listen for tab activation changes
+    const onActivated = (activeInfo: chrome.tabs.OnActivatedInfo) => {
+      chrome.tabs.get(activeInfo.tabId, (tab) => {
+        if (chrome.runtime.lastError || !tab?.url) return;
+        try {
+          const u = new URL(tab.url);
+          if (u.protocol === 'http:' || u.protocol === 'https:') {
+            setLastNonExtTabHostname(u.hostname);
+          }
+        } catch { /* ignore */ }
+      });
+    };
+
+    // Listen for tab URL changes (e.g. navigation within same tab)
+    const onUpdated = (tabId: number, changeInfo: chrome.tabs.OnUpdatedInfo) => {
+      if (changeInfo.url) {
+        try {
+          const u = new URL(changeInfo.url as string);
+          if (u.protocol === 'http:' || u.protocol === 'https:') {
+            // Only update if this tab is the active tab
+            chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
+              if (activeTabs[0]?.id === tabId) {
+                setLastNonExtTabHostname(u.hostname);
+              }
+            });
+          }
+        } catch { /* ignore */ }
+      }
+    };
+
+    chrome.tabs.onActivated.addListener(onActivated);
+    chrome.tabs.onUpdated.addListener(onUpdated as any);
+
+    return () => {
+      chrome.tabs.onActivated.removeListener(onActivated);
+      chrome.tabs.onUpdated.removeListener(onUpdated as any);
+    };
+  }, []);
 
   const set = <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => {
     setSettings((s) => ({ ...s, [key]: value }));
@@ -104,26 +268,26 @@ const SettingsTab: React.FC<Props> = ({ data }) => {
     if (!v) return;
     const current = settings[listKey] as string[];
     if (!current.includes(v)) set(listKey, [...current, v]);
-    setNewDomain('');
   };
 
   const removeFromList = (listKey: 'blocklist' | 'allowedDomains', domain: string) => {
     set(listKey, (settings[listKey] as string[]).filter((d) => d !== domain));
   };
 
+  // Bug 1 fix: use the tracked last-non-extension hostname instead of querying
+  // the live active tab (which is always the settings page itself).
   const addCurrentTab = (listKey: 'blocklist' | 'allowedDomains') => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const url = tabs[0]?.url;
-      if (!url) return;
-      try {
-        const hostname = new URL(url).hostname;
-        const current = settings[listKey] as string[];
-        if (hostname && !current.includes(hostname)) {
-          set(listKey, [...current, hostname]);
-        }
-      } catch { /* invalid URL */ }
-    });
+    if (!lastNonExtTabHostname) return;
+    const current = settings[listKey] as string[];
+    if (!current.includes(lastNonExtTabHostname)) {
+      set(listKey, [...current, lastNonExtTabHostname]);
+    }
   };
+
+  const currentTabDisabled = !lastNonExtTabHostname;
+  const currentTabTooltip = lastNonExtTabHostname
+    ? `Add ${lastNonExtTabHostname}`
+    : 'No non-extension tab visited yet';
 
   const handleResetStats = async () => {
     if (confirm('Clear all stats and session history? Settings are preserved.')) {
@@ -173,67 +337,12 @@ const SettingsTab: React.FC<Props> = ({ data }) => {
     }
   };
 
-  const DomainList: React.FC<{
-    listKey: 'blocklist' | 'allowedDomains';
-    placeholder: string;
-    chipColor: string;
-  }> = ({ listKey, placeholder, chipColor }) => {
-    const domains = settings[listKey] as string[];
-    return (
-      <div>
-        <div className="flex flex-wrap gap-2 mb-3 min-h-8">
-          {domains.map((d) => (
-            <span
-              key={d}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${chipColor}`}
-            >
-              {d}
-              <button
-                onClick={() => removeFromList(listKey, d)}
-                className="hover:text-red-400 transition-colors"
-              >
-                <X size={11} />
-              </button>
-            </span>
-          ))}
-          {domains.length === 0 && (
-            <span className="text-xs text-slate-600 italic">No domains added</span>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder={placeholder}
-            value={newDomain}
-            onChange={(e) => setNewDomain(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') addToList(listKey, newDomain); }}
-            className="flex-1 border border-white/15 rounded-xl px-3 py-2 bg-white/5 text-white text-sm placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-knight-accent focus:border-transparent transition-all"
-          />
-          <button
-            onClick={() => addToList(listKey, newDomain)}
-            className="px-3 py-2 rounded-xl bg-white/8 border border-white/12 hover:bg-white/15 text-slate-300 transition-all"
-            title="Add domain"
-          >
-            <Plus size={16} />
-          </button>
-          <button
-            onClick={() => addCurrentTab(listKey)}
-            className="px-3 py-2 rounded-xl bg-white/8 border border-white/12 hover:bg-white/15 text-slate-300 text-xs font-medium transition-all whitespace-nowrap"
-            title="Add current tab's domain"
-          >
-            + current tab
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent mb-1">
+          <h2 className="text-2xl font-semibold text-white mb-1">
             Settings
           </h2>
           <p className="text-slate-500 text-sm">Changes apply after saving</p>
@@ -306,11 +415,13 @@ const SettingsTab: React.FC<Props> = ({ data }) => {
         />
       </Section>
 
-      {/* Blocking */}
+      {/* Blocking — disabled behind BLOCKING_ENABLED flag */}
       <Section
         icon={<div className="p-2 bg-red-500/15 rounded-xl"><Shield size={18} className="text-red-400" /></div>}
         title="Blocking"
         description="Site blocking during focus sessions"
+        badge={!BLOCKING_ENABLED ? 'Coming Soon' : undefined}
+        disabled={!BLOCKING_ENABLED}
       >
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1">Blocklist</label>
@@ -319,8 +430,15 @@ const SettingsTab: React.FC<Props> = ({ data }) => {
           </p>
           <DomainList
             listKey="blocklist"
+            domains={settings.blocklist}
             placeholder="e.g. reddit.com"
             chipColor="bg-red-500/10 text-red-300 border-red-500/20 hover:border-red-500/40"
+            onAdd={addToList}
+            onRemove={removeFromList}
+            onAddCurrentTab={addCurrentTab}
+            currentTabDisabled={currentTabDisabled}
+            currentTabTooltip={currentTabTooltip}
+            disabled={!BLOCKING_ENABLED}
           />
         </div>
 
@@ -330,6 +448,7 @@ const SettingsTab: React.FC<Props> = ({ data }) => {
             description="Block everything except allowed domains below. Blocklist and skip are also locked during focus."
             checked={settings.strictMode}
             onChange={(v) => set('strictMode', v)}
+            disabled={!BLOCKING_ENABLED}
           />
           {settings.strictMode && (
             <div className="mt-4 pl-4 border-l-2 border-red-500/30">
@@ -339,8 +458,15 @@ const SettingsTab: React.FC<Props> = ({ data }) => {
               </p>
               <DomainList
                 listKey="allowedDomains"
+                domains={settings.allowedDomains}
                 placeholder="e.g. github.com"
                 chipColor="bg-green-500/10 text-green-300 border-green-500/20 hover:border-green-500/40"
+                onAdd={addToList}
+                onRemove={removeFromList}
+                onAddCurrentTab={addCurrentTab}
+                currentTabDisabled={currentTabDisabled}
+                currentTabTooltip={currentTabTooltip}
+                disabled={!BLOCKING_ENABLED}
               />
             </div>
           )}
@@ -361,12 +487,13 @@ const SettingsTab: React.FC<Props> = ({ data }) => {
         />
         <Toggle
           label="Sound"
-          description="Play a chime on session transitions"
+          description="Play a sound when a focus session or break ends"
           checked={settings.soundEnabled}
           onChange={(v) => set('soundEnabled', v)}
         />
         {settings.soundEnabled && (
-          <div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Sound</label>
             <select
               value={settings.soundChoice}
@@ -377,6 +504,23 @@ const SettingsTab: React.FC<Props> = ({ data }) => {
               <option value="chime" className="bg-slate-900">Chime</option>
               <option value="forest" className="bg-slate-900">Forest</option>
             </select>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                setSoundPreviewError(false);
+                try {
+                  const response = await chrome.runtime.sendMessage({ type: 'PREVIEW_SOUND', sound: settings.soundChoice });
+                  if (!response?.ok) throw new Error(response?.error || 'Preview failed');
+                } catch {
+                  setSoundPreviewError(true);
+                }
+              }}
+              className="px-4 py-2.5 rounded-xl border border-white/15 hover:bg-white/8 text-sm font-medium text-white transition-all inline-flex items-center gap-2"
+            >
+              <Play size={14} fill="currentColor" /> Preview
+            </button>
+            {soundPreviewError && <p className="w-full text-xs text-red-300" role="status">Could not play the preview. Try again after reopening the extension.</p>}
           </div>
         )}
       </Section>

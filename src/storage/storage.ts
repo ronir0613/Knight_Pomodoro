@@ -18,7 +18,7 @@ const STORAGE_KEY = 'knight_pomodoro_data';
 // On match, silently reset timerState to defaults (settings + stats are preserved).
 // Zero real installs exist, so no data is lost in practice.
 function migrateTimerState(raw: any): TimerState {
-  if (!raw) return DEFAULT_TIMER_STATE;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return DEFAULT_TIMER_STATE;
 
   // Old shape had 'phase' (string enum) and 'remainingDuration'
   if ('phase' in raw || 'remainingDuration' in raw) {

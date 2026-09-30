@@ -1,0 +1,30 @@
+.kp-dashboard {
+  --dash-bg: #1c1f1b;
+  --dash-panel: #242823;
+  --dash-panel-hover: #2a2e28;
+  --dash-border: #353a33;
+  --dash-ink: #eeeee8;
+  --dash-muted: #a2a69c;
+  --dash-accent: #d0b46d;
+  min-height: 100vh;
+  background: var(--dash-bg);
+  color: var(--dash-ink);
+}
+.kp-dashboard-header { border-bottom: 1px solid var(--dash-border); background: #1c1f1bf2; }
+.kp-dashboard-header > div { max-width: 940px; }
+.kp-dashboard-nav { display: flex; gap: 3px; padding: 4px; border: 1px solid var(--dash-border); border-radius: 9px; background: #222520; }
+.kp-dashboard-tab { min-height: 34px; display: inline-flex; align-items: center; gap: 8px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--dash-muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.kp-dashboard-tab:hover { background: var(--dash-panel-hover); color: var(--dash-ink); }
+.kp-dashboard-tab.is-active { background: #34372f; color: #f2e6c3; }
+.kp-dashboard main { max-width: 940px; }
+.kp-dashboard button:focus-visible, .kp-dashboard input:focus-visible, .kp-dashboard select:focus-visible { outline: 2px solid #d0b46d; outline-offset: 2px; }
+.kp-settings-section { border: 1px solid var(--dash-border) !important; border-radius: 12px !important; background: var(--dash-panel) !important; box-shadow: none !important; }
+.kp-settings-section-head { border-bottom-color: var(--dash-border) !important; }
+.kp-stats-card { border: 1px solid var(--dash-border) !important; border-radius: 12px !important; background: var(--dash-panel) !important; box-shadow: none !important; }
+.kp-stats-chart { border: 1px solid var(--dash-border) !important; border-radius: 12px !important; background: var(--dash-panel) !important; box-shadow: none !important; }
+@media (max-width: 600px) {
+  .kp-dashboard-header > div { padding-left: 16px; padding-right: 16px; }
+  .kp-dashboard-header > div > div:first-child span { display: none; }
+  .kp-dashboard main { padding: 28px 16px; }
+  .kp-dashboard-tab { padding: 0 9px; }
+}

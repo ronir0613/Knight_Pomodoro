@@ -48,7 +48,7 @@ const StatsTab: React.FC<Props> = ({ data }) => {
       <div>
         <div className="flex items-center gap-3 mb-8">
           <div className="w-1 h-8 bg-gradient-to-b from-knight-accent to-transparent rounded-full" />
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+          <h2 className="text-2xl font-semibold text-slate-100">
             Today
           </h2>
         </div>
@@ -56,24 +56,21 @@ const StatsTab: React.FC<Props> = ({ data }) => {
         {/* Today's top stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           {/* Focused */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-knight-accent/40 transition-all duration-300 hover:-translate-y-0.5">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-knight-accent/8 rounded-full blur-2xl" />
+          <div className="kp-stats-card relative overflow-hidden p-6">
             <div className="text-xs uppercase tracking-widest text-slate-500 mb-3 font-semibold">Focused</div>
             <div className="text-4xl font-bold text-knight-accent tabular-nums">{fmt(todayStats.focusedTime)}</div>
             <div className="text-xs text-slate-600 mt-1">deep work</div>
           </div>
 
           {/* Unfocused */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-white/20 transition-all duration-300 hover:-translate-y-0.5">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-slate-500/8 rounded-full blur-2xl" />
+          <div className="kp-stats-card relative overflow-hidden p-6">
             <div className="text-xs uppercase tracking-widest text-slate-500 mb-3 font-semibold">Browsing</div>
             <div className="text-4xl font-bold text-slate-300 tabular-nums">{fmt(todayStats.unfocusedTime)}</div>
             <div className="text-xs text-slate-600 mt-1">no session running</div>
           </div>
 
           {/* Sessions */}
-          <div className="relative overflow-hidden bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10 hover:border-green-500/40 transition-all duration-300 hover:-translate-y-0.5">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/8 rounded-full blur-2xl" />
+          <div className="kp-stats-card relative overflow-hidden p-6">
             <div className="text-xs uppercase tracking-widest text-slate-500 mb-3 font-semibold">Sessions</div>
             <div className="text-4xl font-bold text-green-400 tabular-nums">{todayStats.completedSessions}</div>
             <div className="text-xs text-slate-600 mt-1">completed today</div>
@@ -86,7 +83,7 @@ const StatsTab: React.FC<Props> = ({ data }) => {
           const fp = (todayStats.focusedTime / total) * 100;
           const up = (todayStats.unfocusedTime / total) * 100;
           return (
-            <div className="mt-6 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/10">
+            <div className="kp-stats-chart mt-6 p-6">
               <div className="flex items-center justify-between text-xs text-slate-500 mb-4">
                 <span className="font-semibold uppercase tracking-widest">Time split</span>
               </div>
@@ -129,7 +126,7 @@ const StatsTab: React.FC<Props> = ({ data }) => {
       <div>
         <div className="flex items-center gap-3 mb-8">
           <div className="w-1 h-8 bg-gradient-to-b from-blue-500 to-transparent rounded-full" />
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+          <h2 className="text-2xl font-semibold text-slate-100">
             Last 7 Days
           </h2>
           <span className="text-sm text-slate-500 ml-auto">
@@ -137,7 +134,7 @@ const StatsTab: React.FC<Props> = ({ data }) => {
           </span>
         </div>
 
-        <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl p-8 rounded-2xl border border-white/10">
+        <div className="kp-stats-chart p-8">
           <div className="flex items-end h-48 gap-3">
             {days.map(({ key, label }) => {
               const s = data.dailyStats[key] ?? { focusedTime: 0, unfocusedTime: 0, completedSessions: 0 };

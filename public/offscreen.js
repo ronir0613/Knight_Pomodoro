@@ -1,13 +1,23 @@
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === 'PLAY_SOUND') {
-    const sound = msg.sound || 'bell';
-    switch (sound) {
-      case 'chime':  playChime();  break;
-      case 'forest': playForest(); break;
-      case 'bell':
-      default:       playBell();   break;
-    }
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== 'PLAY_SOUND') return;
+
+  const sound = msg.sound || 'bell';
+  let playback;
+  switch (sound) {
+    case 'chime':  playback = playChime();  break;
+    case 'forest': playback = playForest(); break;
+    case 'bell':
+    default:       playback = playBell();   break;
   }
+
+  Promise.resolve(playback).then(
+    () => sendResponse({ ok: true }),
+    (error) => {
+      console.warn('[KP] Could not play timer sound:', error);
+      sendResponse({ ok: false, error: 'Could not play the selected timer sound' });
+    },
+  );
+  return true;
 });
 
 // Shared audio context
@@ -19,21 +29,16 @@ function getCtx() {
   return ctx;
 }
 
-// Bell: clean single tone with decay
+let activeBell = null;
+
+// Bell Arpeggio 24: a calm vibraphone bell with a short echo, bundled under CC0.
 function playBell() {
-  const c = getCtx();
-  const osc = c.createOscillator();
-  const gain = c.createGain();
-  osc.connect(gain);
-  gain.connect(c.destination);
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(880, c.currentTime);          // A5
-  osc.frequency.exponentialRampToValueAtTime(440, c.currentTime + 1.2);
-  gain.gain.setValueAtTime(0, c.currentTime);
-  gain.gain.linearRampToValueAtTime(0.35, c.currentTime + 0.03);
-  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 1.4);
-  osc.start(c.currentTime);
-  osc.stop(c.currentTime + 1.4);
+  const audio = new Audio(chrome.runtime.getURL('timer-chime.wav'));
+  audio.preload = 'auto';
+  audio.volume = 0.85;
+  activeBell = audio;
+  audio.addEventListener('ended', () => { activeBell = null; }, { once: true });
+  return audio.play();
 }
 
 // Chime: pleasant two-tone (same as original PLAY_AUDIO)

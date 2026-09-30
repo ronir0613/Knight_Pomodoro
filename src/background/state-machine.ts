@@ -2,7 +2,6 @@ import {
   getAppData,
   getTodayDateString,
   incrementDailySession,
-  incrementDailyTime,
   updateTimerState,
 } from '../storage/storage';
 import { PomodoroState, TimerState } from '../storage/models';
@@ -63,12 +62,12 @@ export const advanceState = async (): Promise<void> => {
     const nextPhase: PomodoroState = needsLong ? 'longBreak' : 'shortBreak';
     const nextDuration = needsLong ? settings.longBreakDuration : settings.shortBreakDuration;
 
-    // Credit focus time for the completed phase to stats
-    await incrementDailyTime(getTodayDateString(), timerState.phaseDurationMs, 0);
+    // Focus time is already credited continuously by the activity tracker's
+    // 30-second flush cycle — no one-shot credit here (that caused 2× counting).
     await incrementDailySession(getTodayDateString());
 
     notify('focus-done', settings);
-    playSound(settings);
+    await playSound(settings);
 
     if (settings.autoStartBreaks) {
       const endsAt = now + nextDuration;
@@ -105,7 +104,7 @@ export const advanceState = async (): Promise<void> => {
     // Short or long break complete
     const nextDuration = settings.focusDuration;
     notify('break-done', settings);
-    playSound(settings);
+    await playSound(settings);
 
     if (settings.autoStartFocus) {
       const endsAt = now + nextDuration;

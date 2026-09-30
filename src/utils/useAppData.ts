@@ -1,11 +1,5 @@
 import { useState, useEffect } from 'react';
-import {
-  AppData,
-  DEFAULT_FLOATING_TIMER_UI,
-  DEFAULT_SETTINGS,
-  DEFAULT_TIMER_STATE,
-  DEFAULT_TRACKING_STATE,
-} from '../storage/models';
+import { AppData } from '../storage/models';
 import { getAppData } from '../storage/storage';
 
 export const useAppData = () => {
@@ -21,16 +15,8 @@ export const useAppData = () => {
       if (namespace !== 'local') return;
       if (!changes.knight_pomodoro_data) return;
 
-      const raw = changes.knight_pomodoro_data.newValue as Partial<AppData> | undefined;
-      // Mirror the same defensive merge that getAppData() does
-      const merged: AppData = {
-        settings: { ...DEFAULT_SETTINGS, ...raw?.settings },
-        timerState: raw?.timerState ?? DEFAULT_TIMER_STATE,
-        trackingState: { ...DEFAULT_TRACKING_STATE, ...raw?.trackingState },
-        dailyStats: raw?.dailyStats ?? {},
-        floatingTimerUI: { ...DEFAULT_FLOATING_TIMER_UI, ...raw?.floatingTimerUI },
-      };
-      setData(merged);
+      // Re-read through the same migration and validation path used on mount.
+      void getAppData().then(setData);
     };
 
     chrome.storage.onChanged.addListener(listener);

@@ -7,10 +7,10 @@ import { getFloatingTimerUI, updateFloatingTimerUI } from '../storage/storage';
 // ─── Phase colour palette ─────────────────────────────────────────────────────
 
 const PHASE_COLORS = {
-  idle:       { ring: '#64748b', bg: 'rgba(15,23,42,0.92)',   pill: '#334155' },
-  focus:      { ring: '#f87171', bg: 'rgba(127,29,29,0.88)', pill: '#991b1b' },
-  shortBreak: { ring: '#4ade80', bg: 'rgba(20,83,45,0.88)',   pill: '#166534' },
-  longBreak:  { ring: '#60a5fa', bg: 'rgba(30,58,138,0.88)', pill: '#1e3a8a' },
+  idle:       { ring: '#aaa49a', bg: 'rgba(38,39,35,0.96)',   pill: '#282923' },
+  focus:      { ring: '#d57462', bg: 'rgba(69,43,39,0.96)', pill: '#4a2d28' },
+  shortBreak: { ring: '#87a78c', bg: 'rgba(40,58,45,0.96)',   pill: '#2d4936' },
+  longBreak:  { ring: '#9ca9bb', bg: 'rgba(47,54,65,0.96)', pill: '#343d4b' },
 };
 
 // ─── Keyframe styles injected into shadow root ─────────────────────────────────
@@ -49,7 +49,7 @@ const ProgressRing: React.FC<{ progress: number; color: string; size: number; st
         strokeLinecap="round"
         strokeDasharray={circ}
         strokeDashoffset={offset}
-        style={{ transition: 'stroke-dashoffset 0.8s ease', filter: `drop-shadow(0 0 5px ${color}80)` }}
+        style={{ transition: 'stroke-dashoffset 0.8s ease' }}
       />
     </svg>
   );
@@ -84,11 +84,15 @@ const FloatingTimer: React.FC = () => {
   const isDragging = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const PILL_W = 218;
+  const PILL_H = 48;
+  const CARD_W = 228;
+  const CARD_H = 248;
 
   // Restore position/collapsed from storage directly — independent of the
   // useAppData hook so we don't have to wait for the full AppData merge.
   useEffect(() => {
-    const defaultX = window.innerWidth - 104; // right-edge minus pill width + margin
+    const defaultX = Math.max(16, window.innerWidth - PILL_W - 16);
     const defaultY = 24;
 
     getFloatingTimerUI().then((ui) => {
@@ -137,6 +141,7 @@ const FloatingTimer: React.FC = () => {
 
   // ── Drag handling ──────────────────────────────────────────────────────────
   const onMouseDown = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
     e.preventDefault();
     isDragging.current = true;
     dragOffset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
@@ -146,8 +151,8 @@ const FloatingTimer: React.FC = () => {
     const onMove = (e: MouseEvent) => {
       if (!isDragging.current) return;
       const el = containerRef.current;
-      const w = el?.offsetWidth ?? 88;
-      const h = el?.offsetHeight ?? 36;
+      const w = el?.offsetWidth ?? PILL_W;
+      const h = el?.offsetHeight ?? PILL_H;
       const newX = Math.max(0, Math.min(e.clientX - dragOffset.current.x, window.innerWidth - w));
       const newY = Math.max(0, Math.min(e.clientY - dragOffset.current.y, window.innerHeight - h));
       setPos({ x: newX, y: newY });
@@ -180,10 +185,16 @@ const FloatingTimer: React.FC = () => {
     if (!data) return;
     const ts = data.timerState;
     if (ts.pausedAt !== null) {
-      chrome.runtime.sendMessage({ type: 'RESUME' });
+      const waitingForBreak = phase === 'shortBreak' || phase === 'longBreak';
+      chrome.runtime.sendMessage({ type: waitingForBreak ? 'START_BREAK' : 'RESUME' });
     } else {
       chrome.runtime.sendMessage({ type: 'PAUSE' });
     }
+  };
+
+  const sendAction = (type: string) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    chrome.runtime.sendMessage({ type });
   };
 
   const phaseLabel: Record<string, string> = {
@@ -194,12 +205,8 @@ const FloatingTimer: React.FC = () => {
   };
 
   const isPaused = data?.timerState.pausedAt !== null;
-
-  // ── Dimensions ─────────────────────────────────────────────────────────────
-  const PILL_W = 88;
-  const PILL_H = 36;
-  const CARD_W = 160;
-  const CARD_H = 180;
+  const isWaitingForBreak = (phase === 'shortBreak' || phase === 'longBreak') && isPaused;
+  const isStrictFocus = phase === 'focus' && Boolean(data?.settings.strictMode);
 
   const safeX = pos.x < 0
     ? window.innerWidth - (collapsed ? PILL_W : CARD_W) - 16
@@ -228,109 +235,118 @@ const FloatingTimer: React.FC = () => {
       }}
     >
       {collapsed ? (
-        /* ── Collapsed pill ── */
+        /* Compact timer: show the phase and one-tap pause/resume. */
         <div
           onMouseDown={onMouseDown}
-          onClick={toggleCollapsed}
+          role="group"
+          aria-label={`${phaseLabel[phase]} timer, ${formatTime(displayMs)} remaining`}
           style={{
             width: PILL_W,
             height: PILL_H,
             background: colors.pill,
-            borderRadius: 18,
-            border: `1.5px solid ${colors.ring}40`,
+            borderRadius: 14,
+            border: '1px solid rgba(255,255,255,0.14)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
+            justifyContent: 'space-between',
+            padding: '0 8px 0 11px',
+            gap: 7,
             cursor: 'grab',
-            boxShadow: `0 4px 16px ${colors.ring}30, 0 2px 8px rgba(0,0,0,0.5)`,
+            boxShadow: '0 4px 18px rgba(0,0,0,0.22)',
             animation: isPulsing ? 'kp-pulse 0.6s ease' : undefined,
           }}
         >
           <span
             style={{
-              width: 7,
-              height: 7,
+              width: 8,
+              height: 8,
               borderRadius: '50%',
               background: isPaused ? '#94a3b8' : colors.ring,
-              boxShadow: isPaused ? 'none' : `0 0 6px ${colors.ring}`,
+              boxShadow: 'none',
               flexShrink: 0,
             }}
           />
-          <span
-            style={{
-              color: '#f1f5f9',
-              fontSize: 13,
-              fontWeight: 500,
-              letterSpacing: -0.3,
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
+          <span style={{ minWidth: 0, flex: 1, color: '#f3f2ed', fontSize: 11, fontWeight: 550, whiteSpace: 'nowrap' }}>
+            {isPaused ? (isWaitingForBreak ? 'Break ready' : 'Paused') : phaseLabel[phase]}
+          </span>
+          <span style={{ color: '#fff', fontSize: 14, fontWeight: 650, letterSpacing: 0.15, fontVariantNumeric: 'tabular-nums' }}>
             {formatTime(displayMs)}
           </span>
+          <button
+            type="button"
+            onClick={handlePauseResume}
+            disabled={isStrictFocus}
+            aria-label={isPaused ? (isWaitingForBreak ? 'Start break' : 'Resume timer') : 'Pause timer'}
+            title={isStrictFocus ? 'Pause is disabled in strict mode' : isPaused ? 'Resume timer' : 'Pause timer'}
+            style={{
+              height: 30, minWidth: 54, padding: '0 8px', borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.09)',
+              color: '#fff', fontSize: 10, fontWeight: 650, cursor: isStrictFocus ? 'not-allowed' : 'pointer',
+              opacity: isStrictFocus ? 0.55 : 1,
+            }}
+          >
+            {isPaused ? (isWaitingForBreak ? 'Start' : 'Resume') : isStrictFocus ? 'Locked' : 'Pause'}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); toggleCollapsed(); }}
+            aria-label="Expand timer"
+            title="Expand timer"
+            style={{ width: 21, height: 28, padding: 0, border: 0, background: 'transparent', color: '#d6d4cd', fontSize: 16, cursor: 'pointer' }}
+          >
+            ⌃
+          </button>
         </div>
       ) : (
-        /* ── Expanded card ── */
+        /* Expanded timer card */
         <div
           style={{
-            position: 'relative', // needed for absolute-positioned children (drag handle, × button)
+            position: 'relative',
             width: CARD_W,
             height: CARD_H,
             background: colors.bg,
-            borderRadius: 20,
-            border: `1.5px solid ${colors.ring}30`,
-            backdropFilter: 'blur(16px)',
-            boxShadow: `0 8px 32px ${colors.ring}20, 0 4px 16px rgba(0,0,0,0.6)`,
+            borderRadius: 16,
+            border: '1px solid rgba(255,255,255,0.15)',
+            boxShadow: '0 8px 26px rgba(0,0,0,0.24)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: 10,
-            padding: 16,
+            justifyContent: 'flex-start',
+            gap: 5,
+            padding: '11px 13px 12px',
             animation: isPulsing ? 'kp-pulse 0.6s ease' : undefined,
           }}
         >
-          {/* Drag handle */}
           <div
             onMouseDown={onMouseDown}
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 32,
+              width: '100%',
+              height: 27,
+              flexShrink: 0,
               cursor: 'grab',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
+              justifyContent: 'space-between',
             }}
           >
-            <div style={{ width: 32, height: 3, background: 'rgba(255,255,255,0.15)', borderRadius: 4 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: isPaused ? '#a7a398' : colors.ring }} />
+              <span style={{ color: '#f1f0eb', fontSize: 12, fontWeight: 650 }}>{phaseLabel[phase]}</span>
+              {isPaused && <span style={{ color: '#b9b6ac', fontSize: 9, fontWeight: 600 }}>PAUSED</span>}
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); toggleCollapsed(); }}
+              aria-label="Collapse timer"
+              title="Collapse timer"
+              style={{ width: 27, height: 27, padding: 0, border: 0, borderRadius: 7, background: 'rgba(255,255,255,0.07)', color: '#eee', fontSize: 16, cursor: 'pointer' }}
+            >
+              ⌄
+            </button>
           </div>
 
-          {/* Collapse button */}
-          <button
-            onClick={toggleCollapsed}
-            style={{
-              position: 'absolute',
-              top: 8,
-              right: 10,
-              background: 'none',
-              border: 'none',
-              color: 'rgba(255,255,255,0.4)',
-              cursor: 'pointer',
-              fontSize: 16,
-              lineHeight: 1,
-              padding: 2,
-            }}
-            title="Collapse"
-          >
-            ×
-          </button>
-
-          {/* Progress ring + time */}
-          <div style={{ position: 'relative', width: 96, height: 96, marginTop: 8 }}>
-            <ProgressRing progress={progress} color={colors.ring} size={96} strokeWidth={5} />
+          <div style={{ position: 'relative', width: 112, height: 112, flexShrink: 0 }}>
+            <ProgressRing progress={progress} color={colors.ring} size={112} strokeWidth={5} />
             <div
               style={{
                 position: 'absolute',
@@ -344,9 +360,9 @@ const FloatingTimer: React.FC = () => {
               <span
                 style={{
                   color: '#f1f5f9',
-                  fontSize: 20,
-                  fontWeight: 300,
-                  letterSpacing: -0.5,
+                  fontSize: 24,
+                  fontWeight: 500,
+                  letterSpacing: -0.8,
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
@@ -360,33 +376,43 @@ const FloatingTimer: React.FC = () => {
                   textTransform: 'uppercase',
                   letterSpacing: 1,
                   marginTop: 2,
-                  opacity: 0.8,
                 }}
               >
-                {phaseLabel[phase]}
+                {isWaitingForBreak ? 'READY' : isPaused ? 'PAUSED' : 'REMAINING'}
               </span>
             </div>
           </div>
 
-          {/* Pause / Resume */}
-          {phase === 'focus' && (
+          {phase === 'focus' && data && (
+            <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: 9, lineHeight: '12px' }}>
+              {Math.min(data.timerState.currentCycle + 1, data.settings.longBreakInterval)} of {data.settings.longBreakInterval} sessions before long break
+            </span>
+          )}
+
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: 7, marginTop: 'auto' }}>
             <button
               onClick={handlePauseResume}
+              disabled={isStrictFocus}
+              aria-label={isPaused ? (isWaitingForBreak ? 'Start break' : 'Resume timer') : 'Pause timer'}
               style={{
-                background: 'rgba(255,255,255,0.08)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                color: '#f1f5f9',
-                borderRadius: 10,
-                padding: '5px 14px',
-                fontSize: 11,
-                fontWeight: 500,
-                cursor: 'pointer',
-                letterSpacing: 0.3,
+                minWidth: 94, height: 34, padding: '0 11px', borderRadius: 9,
+                background: colors.ring, border: `1px solid ${colors.ring}`,
+                color: '#171815', fontSize: 11, fontWeight: 700,
+                cursor: isStrictFocus ? 'not-allowed' : 'pointer', opacity: isStrictFocus ? 0.55 : 1,
               }}
             >
-              {isPaused ? '▶ Resume' : '⏸ Pause'}
+              {isPaused ? (isWaitingForBreak ? 'Start break' : 'Resume') : isStrictFocus ? 'Focus locked' : 'Pause'}
             </button>
-          )}
+            <button
+              type="button"
+              onClick={sendAction(phase === 'focus' ? 'STOP' : 'SKIP')}
+              aria-label={phase === 'focus' ? 'End focus session' : 'Skip break'}
+              title={phase === 'focus' ? 'End focus session' : 'Skip break'}
+              style={{ height: 34, padding: '0 11px', borderRadius: 9, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.16)', color: '#eee', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+            >
+              {phase === 'focus' ? 'End' : 'Skip'}
+            </button>
+          </div>
         </div>
       )}
     </div>

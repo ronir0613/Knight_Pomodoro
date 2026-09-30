@@ -40,9 +40,7 @@ export const notify = (
 
 // ─── Sound via offscreen document ─────────────────────────────────────────────
 
-export const playSound = async (settings: UserSettings): Promise<void> => {
-  if (!settings.soundEnabled) return;
-
+const sendSound = async (sound: UserSettings['soundChoice']): Promise<void> => {
   try {
     const hasDocument = await chrome.offscreen.hasDocument();
     if (!hasDocument) {
@@ -52,11 +50,26 @@ export const playSound = async (settings: UserSettings): Promise<void> => {
         justification: 'Play Pomodoro completion chime',
       });
     }
-    chrome.runtime.sendMessage({
+    const response = await chrome.runtime.sendMessage({
       type: 'PLAY_SOUND',
-      sound: settings.soundChoice,
+      sound,
     });
+    if (response?.ok === false) throw new Error(response.error || 'Offscreen audio playback failed');
   } catch (e) {
     console.warn('[KP] Sound playback failed:', e);
+    throw e;
   }
+};
+
+export const playSound = async (settings: UserSettings): Promise<void> => {
+  if (!settings.soundEnabled) return;
+  try {
+    await sendSound(settings.soundChoice);
+  } catch {
+    // Keep timer transitions running if audio is unavailable.
+  }
+};
+
+export const previewSound = async (sound: UserSettings['soundChoice']): Promise<void> => {
+  await sendSound(sound);
 };

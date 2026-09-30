@@ -15,6 +15,7 @@ import {
 import { handleFlushAlarm, handleIdleStateChange, handleWindowFocusChange, initTracking } from '../tracking/activity-tracker';
 import { updateRules } from './blocker';
 import { getAppData, getTodayDateString, incrementDailyTime } from '../storage/storage';
+import { previewSound } from '../notifications/notifications';
 
 // ─── Startup ──────────────────────────────────────────────────────────────────
 
@@ -123,6 +124,16 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
         break;
       case 'SKIP':
         await skipCurrent();
+        break;
+      case 'PREVIEW_SOUND':
+        if (request.sound === 'bell' || request.sound === 'chime' || request.sound === 'forest') {
+          try {
+            await previewSound(request.sound);
+          } catch (error) {
+            sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Sound could not be played' });
+            return;
+          }
+        }
         break;
       case 'GET_STATE': {
         const data = await getAppData();
